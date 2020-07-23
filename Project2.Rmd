@@ -1,0 +1,828 @@
+---
+title: "Project 3"
+author: "Jacob Halle"
+date: "11/10/2019"
+output: html_document
+---
+
+```{r}
+#1 Clean the data
+#1a check the dates
+setwd("C:/Users/jacob/OneDrive/Documents/Senior/497/Project2") #Set working directory
+library(readxl)
+Data = read_excel("Data_Project2.xlsx") #Get the data
+x = rep(0,length(Data$Date))
+better.dates = rep(0,length(Data$Date))
+better.dates = as.Date(as.numeric(Data$Date),origin = "1899-12-30")
+weird.id = grep("[0-9]{5}",Data$Date, invert = TRUE)
+better.dates[weird.id[1]] = as.Date('2012-12-11') #Manually correct each date
+better.dates[weird.id[2]] = as.Date('2013-03-12')
+better.dates[weird.id[3]] = as.Date('2014-05-05')
+better.dates[weird.id[4]] = as.Date('2014-07-21')
+better.dates[weird.id[5]] = as.Date('2012-01-16')
+better.dates[weird.id[6]] = as.Date('2012-07-12')
+better.dates[weird.id[7]] = as.Date('2012-02-26')
+better.dates[weird.id[8]] = as.Date('2012-02-26')
+Data$Date = better.dates
+#1b check drug names
+Data$Drug = tolower(Data$Drug) #Make all letters lowercase
+drugs = unique(Data$Drug) #Check that all drugs have unique names
+newdata = read_excel("Category_descriptions.xlsx",col_names = FALSE)
+newdata[newdata == "5-FU"] = "5-fluorouracil"
+newdata[newdata == "Vinolrebine"] = "vinorelbine"
+newdata[newdata == "Mitomycin-C"] = "mitomycinc"
+newdata[newdata == "Permetrexed"] = "pemetrexed"
+fulldata = data.frame(matrix(NA, nrow = nrow(Data), ncol = ncol(newdata)+ncol(Data))) #Create a blank data frame to fill in
+for (i in 1:34){
+  id = which(!is.na(newdata[i,])) #Take the ids of columns that are not NA
+  drugid = max(id) #The drug name is the last column in the description spreadsheet
+  drug = tolower(newdata[i,drugid]) #Get the name of the drug in lowercase letters
+    for (j in 1:723){
+      if (Data[j,1] == drug){
+        fulldata[j,12:18] = newdata[i,] #Write in the discription spreadsheet
+      }
+    }
+}
+
+fulldata[,1:11] = Data #Fill in rest of data
+nameslist = c(colnames(Data),colnames(newdata))
+colnames(fulldata) = nameslist
+Data.table = table(fulldata$Drug)
+#doxorubicin = 144
+#Cisplatin = 42
+#5-FU = 164
+
+# 1c
+# Omit missing observations
+```
+```{r}
+#2
+#For each drug, remove any observations that has a percent death outside of two standard deviations
+for (i in 1:length(drugs)){
+  subsetid = grep(drugs[2],fulldata[,1]) #obtain the ids of the rows with the same drugs
+  subset = fulldata[subsetid,2] #Make a subset of just the %Dead for each drug
+  submean = mean(subset)
+  substd = sd(subset)
+  topcut = submean + substd*2 #Define cutoffs
+  botcut = submean - substd*2
+  cut1id = which(fulldata[subsetid,2] > topcut) #Find ids outside the cutoffs
+  cut2id = which(fulldata[subsetid,2] < botcut)
+  cuts = c(cut1id, cut2id)
+  if (sum(cuts) > 0){ #Errors if nothing gets cut so only cut if it needs to
+  fulldata = fulldata[-cuts,] #Cut the outlier data
+  }
+}
+```
+
+```{r}
+#3
+#Take average for each protein
+drugave = data.frame(matrix(NA, nrow = 45, ncol = 9))
+for (i in 1:length(drugs)){
+  id = grep(drugs[i],fulldata$Drug) #find the ids of rows that have the same drug
+  drugset = (fulldata[id,4:11]) #Subset this data
+  drugset = drugset[complete.cases(drugset),] #Remove rows with NAs
+  drugave[i,2:9] = colMeans(drugset)
+  drugave[i,1] = drugs[i]
+}
+#Need to correct for Phenpt(iv)
+id = grep('phenpt\\(iv\\)',fulldata$Drug) #find the ids of rows that have the same drug
+  drugset = (fulldata[id,4:11]) #Subset this data
+  drugset = drugset[complete.cases(drugset),] #Remove rows with NAs
+  drugave[17,2:9] = colMeans(drugset)
+  drugave[17,1] = drugs[17]
+  
+cat1.1id = which(newdata[,3] == 1.1) #Get the names of each drug in each category
+cat1.1 = newdata[cat1.1id,5]
+cat1.2id = which(newdata[,3] == 1.2)
+cat1.2 = newdata[cat1.2id,5]
+cat1.3id = which(newdata[,3] == 1.3) 
+cat1.3 = newdata[cat1.3id,5]
+cat2.1.1id = which(newdata[,5] == "2.1.1") 
+cat2.1.1 = newdata[cat2.1.1id,7]
+cat2.1.2id = which(newdata[,5] == "2.1.2") 
+cat2.1.2 = newdata[cat2.1.2id,7]
+cat2.2id = which(newdata[,3] == 2.2) 
+cat2.2 = newdata[cat2.2id,5]
+cat2.3.1id = which(newdata[,5] == "2.3.1") 
+cat2.3.1 = newdata[cat2.3.1id,7]
+cat2.3.2id = which(newdata[,5] == "2.3.2") 
+cat2.3.2 = newdata[cat2.3.2id,7]
+cat2.4.1id = which(newdata[,5] == "2.4.1") 
+cat2.4.1 = newdata[cat2.4.1id,6]
+# distances
+cat = data.frame(matrix(NA, nrow = 9, ncol = 7)) #Make a data frame separated by categories containing only drug name
+cat[1:4,1] = cat1.1
+cat[1:3,2] = cat1.2
+cat[1:7,3] = cat1.3
+cat[1:3,4] = cat2.1.1
+cat[1:4,5] = cat2.1.2
+cat[1:3,6] = cat2.2
+cat[1:2,7] = cat2.3.1
+cat[1:3,8] = cat2.3.2
+cat[1:5,9] = cat2.4.1
+cat[3,3] = "mitomycin" #Correct names
+cat[3,4] = "vinorelbine"
+cat[3,5] = "Cabazitaxel"
+cat[4,5] = NA
+cat[5,9] = NA #Delete drug not found in data
+cat[2,7] = NA
+type = c("1.1","1.2","1.3","2.1.1","2.1.2","2.2","2.3.1","2.3.2","2.4.1")
+colnames(cat) = type
+D = function(x,y){ #Function for finding distance
+  d = sqrt((x[1]-y[1])^2 +(x[2]-y[2])^2+(x[3]-y[3])^2+(x[4]-y[4])^2+(x[5]-y[5])^2+(x[6]-y[6])^2+(x[7]-y[7])^2+(x[8]-y[8])^2)
+  return(d)
+}
+#Points = point8d(drugave[,2:9])
+type = c("1.1","1.2","1.3","2.1.1","2.1.2","2.2","2.3.1","2.3.2","2.4.1")
+iterations = c(1,2,3,4,5,6,8,9) #Define iterations for desired categories
+for (k in iterations){
+distances = data.frame(matrix(NA, nrow = length(cat[!is.na(cat[,k]),k]), ncol = length(cat[!is.na(cat[,k]),k]))) #Make a dataframe for each distance
+name = paste("distances",type[k],sep="") #Make a new name for each matrix based on category
+  for (i in 1:length(cat[!is.na(cat[,k]),k])){
+    for (j in 1:length(cat[!is.na(cat[,k]),k])){
+    point1id = grep(tolower(cat[i,k]),drugave[,1]) #Find the ids of the two drugs to be compared
+    point2id = grep(tolower(cat[j,k]),drugave[,1])
+    distances[j,i] = D(drugave[point1id,2:9],drugave[point2id,2:9]) #Use the distance function I made
+    row.names(distances) = cat[!is.na(cat[,k]),k] #Define row names
+    colnames(distances) = cat[!is.na(cat[,k]),k]
+    }
+  }
+print(distances)
+assign(name,distances)
+}
+#Find the distance between each category
+#Build a dataframe with the average values for each category
+cat.distances = data.frame(matrix(NA, nrow = length(cat[1,]), ncol = length(cat[1,])-1)) #Allocate a matrix to take the average for each category
+for (i in 1:length(cat[1,])){
+ drugs.in.cat = cat[!is.na(cat[,i]),i] #Get the namesof the drug in the category
+ cat.values = data.frame(matrix(NA,nrow = length(drugs.in.cat), ncol = length(drugave[1,]))) #Allocate a dataframe for the values of each drug in the cat
+    for(j in 1:length(drugs.in.cat)){
+      cat.id = grep(tolower(cat[j,i]),drugave[,1]) #Find the drugs in the drug averages dataframe
+      cat.values[j,] = drugave[cat.id,] #Put the data into a separate dataframe
+      
+    }
+ cat.distances[i,] = colMeans(cat.values[2:9]) #Calculate the averages for each category
+}
+row.names(cat.distances) = type #Adjust column and row names
+colnames(cat.distances) = colnames(fulldata[4:11])
+#Find the distances between each category
+final.distances = data.frame(matrix(NA,nrow = length(cat.distances[,1]),ncol = length(cat.distances[,1]))) #Allocate a dataframe for the final distances
+for (i in 1:length(cat.distances[,1])){
+  for (j in 1:length(cat.distances[,1])){
+ cat1 = cat.distances[i,]
+ cat2 = cat.distances[j,]
+ final.distances[j,i] = D(cat1,cat2) #Find the distances between each category
+  }
+}
+rownames(final.distances) = type #Adjust row and column names
+colnames(final.distances) = type
+print(final.distances)
+```
+```{r}
+#4 NO LONGER INCLUDED
+# library(MASS)
+# counter = 0
+# DNAdamage = fulldata[grep("^DNAdamage",fulldata[,4:13]),]
+# notDNAdamage = fulldata[grep("^NotDNAdamage",fulldata[,4:13]),]
+# id = grep("DNAdamage",fulldata[,13])
+# both = fulldata[id,] #Make a data set with only the rows that have info for DNA damage
+# colnames(both) = c(colnames(fulldata[1:11]),"X1","Damage","Categories","X4","X5","X6","X7") #Name the columns
+# train = sample(c(TRUE,FALSE), nrow(both),rep = TRUE) #Make test and training sets
+# test = (!train)
+# trainset = both[train,]
+# testset = both[test,]
+# fit = lda(Damage~shP53+shCHK2 + shATR + shCHK1 + shATX #fit an LDA model
+#           + shDNAPK + shBOK + shBIM, data = trainset)
+# fit
+# lda.pred = predict(fit,testset) #Predictions
+# lda.class = lda.pred$class
+# lda.result = table(lda.class,testset$Categories) #See how accurate the model is
+# lda.result
+# (lda.result[1,1]+lda.result[2,2])/sum(lda.result) *100
+```
+
+```{r} 
+#6
+#BSS is used here to determine how many predictors to usel because the number of observations is larger than the number of predictors
+#Compare the BIc, adj r^2, and cross validation errors
+#First, need to get the specific categories of each drug into the same column
+DNAdamage = fulldata[grep("^DNAdamage",fulldata[,4:13]),]
+notDNAdamage = fulldata[grep("^NotDNAdamage",fulldata[,4:13]),]
+id = grep("DNAdamage",fulldata[,13])
+both = fulldata[id,] #Make a data set with only the rows that have info for DNA damage
+colnames(both) = c(colnames(fulldata[1:11]),"X1","Damage","Categories","X4","X5","X6","X7") #Name the columns
+library(leaps)
+for (i in 1:9){
+    id = grep(paste("^",type[i],"$",sep=""),both[,16]) #Find the specific category if it exists
+    if (length(id) != 0){
+      both[id,14] = both[id,16] #Write the specific category into the general category column
+  }
+}
+#Next, I want to eliminate all rows with NAs in the protein columns
+id1 = which(is.na(both[,4]))
+id2 = which(is.na(both[,5]))
+id3 = which(is.na(both[,6]))
+id4 = which(is.na(both[,7]))
+id5 = which(is.na(both[,8]))
+id6 = which(is.na(both[,9]))
+id7 = which(is.na(both[,10]))
+id8 = which(is.na(both[,11]))
+id = c(id4,id5,id6)
+desired.col = c(1,4:11,14)
+merged = both[-id,desired.col]
+attach(merged)
+
+train = sample(1:length(merged[,1]), ceiling(0.8*length(merged[,1])), replace = FALSE) #Make test and training sets. training = 80% of the data
+fulltrainset = merged[train,]
+realtestset = merged[-train,] 
+train2 = sample(1:length(fulltrainset[,1]), ceiling(0.8*length(fulltrainset[,1])), replace = FALSE) #Creat mock training and test sets from the real training set
+mocktrainset = fulltrainset[train2,]
+mocktestset = fulltrainset[-train2,]
+
+#Backwards subset selection to find the number of predictors
+
+bkwd.fit = regsubsets(as.factor(Categories)~ shP53+shCHK2 + shATR + shCHK1 + shATX+ shDNAPK + shBOK + shBIM, data = merged, method = "backward")
+summary(bkwd.fit)
+bkwd.sum = summary(bkwd.fit)
+par(mfrow = c(1,2))
+plot(bkwd.sum$rss, xlab = "Number of Variables", ylab = "RSS" )
+plot(bkwd.sum$adjr2, xlab = "Number of Variables", ylab = "Adjusted R^2" )
+#There graphs show that the lowest RSS and highest adjusted R^2 occur with 8 predictors
+which.max(bkwd.sum$adjr2)
+which.min(bkwd.sum$rss)
+#This confirms it, so I will be using 8 variables in my model
+merged$Categories = as.factor(merged$Categories)
+set.seed(4)
+
+# MOCK LDA
+
+library(MASS)
+lda.fit = lda(Categories~shP53+shCHK2 + shATR + shCHK1 + shATX+ shDNAPK + shBOK + shBIM,data = mocktrainset)
+lda.pred = predict(lda.fit,mocktestset)
+lda.class = lda.pred$class
+#table(lda.class,mocktestset$Categories)
+mean(lda.class == mocktestset$Categories) 
+#96.05% PERCENT CORRECT
+#3.95% Training error
+
+# MOCK KNN
+
+library(class)
+train.knn = fulltrainset[train2,2:9]
+test.knn = fulltrainset[-train2,2:9]
+cat.knn = fulltrainset[train2,10]
+k = 5 #Guess a k value
+set.seed(1)
+knn.pred = knn(train.knn,test.knn,cat.knn ,k)
+#table(knn.pred,mocktestset$Categories)
+mean(knn.pred == mocktestset$Categories)
+
+#Accuracy with k = 5 for mock set is 98.68 %
+#Training error = 1.32%
+
+# Cross validate 
+library(caret)
+#Perform 5-fold cross valiation
+
+trControl = trainControl(method = "cv", number = 5)
+cv.lda = train(Categories ~., method = "lda", trControl = trControl,  data = mocktrainset[,2:10])
+cv.lda
+#Highest accuracy for lda crossvalidation is 94.39%
+#LDA Validation error = 5.32%
+
+
+cv.knn = train(Categories ~., method = "knn", tuneGrid = expand.grid(k = 1:10),trControl = trControl, metric  = "Accuracy", data = mocktrainset[,2:10]) 
+cv.knn
+#Highest accuracy for knn crossvalidation is 96.08 % with a k value of 1.
+#KNN validation error = 3.92% 
+#KNN has a lower training and cross validation error. This indicates that KNN is better at determing trends that lead to more accurate predictions. The fact that the training and cross validation error were lowr for KNN than LDA in both cases gives reasonable evidence to suggest that KNN is a better choice for this data set.
+#I will now test the two models on the full data set to see if either model overfits or underfits the data with the introduction of more observations
+
+#LDA full training set
+
+lda.fit = lda(Categories~shP53+shCHK2 + shATR + shCHK1 + shATX+ shDNAPK + shBOK + shBIM,data = fulltrainset)
+lda.pred = predict(lda.fit,realtestset)
+lda.class = lda.pred$class
+#table(lda.class,mocktestset$Categories)
+mean(lda.class == realtestset$Categories) 
+#Test error = 8.9%
+
+#KNN full training set
+
+train.knn = merged[train,2:9]
+test.knn = merged[-train,2:9]
+cat.knn = merged[train,10]
+k = 1
+knn.pred = knn(train.knn,test.knn,cat.knn ,k)
+#table(knn.pred,realtestset$Categories)
+mean(knn.pred == realtestset$Categories)
+#Test error =3.33 %
+
+#KNN still performed well and LDA performed worse on the larger data set. This implies that the LDA model underfit the data with the smaller training set while the KNN model is better at obtaining the overall trend in the data. This agrees with the lower values in the cross validation error and test error of the KNN model. 
+#The predicted error from cross validation was slightly higher than the actual test error for KNN. This is because cross validation tends to have a slight pessemistic bias. 
+#As mentioned previously, it is likely that LDA is underfitting the model which is resulting in more test error than training error.
+#Because KNN performs better than LDA, it implies that the data is more nonlinear than linear. The low test error of KNN implies that the data is non-parametric as well.
+#I choose to progress with KNN over LDA for its lower error overall
+
+#6b
+
+#Predict the drugs that are not in categories 
+#First want to set a training set that is all the data that we have category data for
+#Next I want make a test set that is all the data we dont have category data for
+#First, I need to make a data frame that has all the data but with no NAs in the protein data
+id1 = which(is.na(fulldata[,4]))
+id2 = which(is.na(fulldata[,5]))
+id3 = which(is.na(fulldata[,6]))
+id4 = which(is.na(fulldata[,7]))
+id5 = which(is.na(fulldata[,8]))
+id6 = which(is.na(fulldata[,9]))
+id7 = which(is.na(fulldata[,10]))
+id8 = which(is.na(fulldata[,11]))
+id = c(id4,id5,id6)
+knn.data = fulldata[-id,]
+fulldata = fulldata[-id,]
+#Need to have the specific categories all in the same category
+for (i in 1:9){
+    id = grep(paste("^",type[i],"$",sep=""),knn.data[,16]) #Find the specific category if it exists
+    if (length(id) != 0){
+      knn.data[id,14] = knn.data[id,16] #Write the specific category into the general category column
+  }
+}
+id = which(is.na(knn.data[,14])) #Now separating test and training based on presence of category data
+cols = c(1,4,5,6,7,8,9,10,11)
+test.knn = knn.data[id,cols]
+train.knn = knn.data[-id,cols]
+cat.knn = as.factor(knn.data[-id,14])
+k = 2
+knn.pred = knn(train.knn[,2:9],test.knn[2:9],cat.knn,k=2)
+
+#Want to display this data in a meaningful 
+#Create a dataframe that shows how often KNN predicted each drug fit into a category
+drugs.nocat = unique(tolower(knn.data[id,1])) #Identify the drugs that have no category
+drug.pred = data.frame(matrix(NA,nrow = length(unique(knn.data[id,1])), ncol = length(type)))
+colnames(drug.pred) = type
+row.names(drug.pred) = unique(knn.data[id,1])
+for (i in 1:length(unique(knn.data[id,1]))){
+  id1 = grep(drugs.nocat[i],test.knn[,1])
+  subset = knn.pred[id1]
+  N1.1 = length(which(subset == 1.1))
+  N1.2 = length(which(subset == 1.2))
+  N1.3 = length(which(subset == 1.3))
+  N2.1.1 = length(which(subset == "2.1.1"))
+  N2.1.2 = length(which(subset == "2.1.2"))
+  N2.2 = length(which(subset == 2.2))
+  N2.3.1 = length(which(subset == "2.3.1"))
+  N2.3.2 = length(which(subset == "2.3.2"))
+  N2.4.1 = length(which(subset == "2.4.1"))
+  drug.pred[i,] = c(N1.1,N1.2,N1.3,N2.1.1,N2.1.2,N2.2,N2.3.1,N2.3.2,N2.4.1)
+}
+print(drug.pred) #This is the amount of times the model predicted a drug would be in a certain category
+
+#6c - Do you believe these predictions?
+
+#I will be looking at Pyriplatin
+#Pyriplatin only got predictions of type 1.3 so I want to see how accurate this is
+#The first way I will check is by examining the average distance between Pyriplatin and the drugs in each category
+#For the purpose of this experiment, I will add Pyriplatin into each category 
+cat.new = cat
+for (i in 1:9){
+  cat.new[length(cat[!is.na(cat[,i]),i])+1,i] = "pyriplatin"
+}
+#Make a new set of distance data frames including Pyriplatin
+ave.pyr.dist = data.frame(matrix(NA, nrow =1, ncol = 9))
+colnames(ave.pyr.dist) = type[c(1,2,3,4,5,6,7,8,9)]
+for (k in 1:9){
+new.distances = data.frame(matrix(NA, nrow = length(cat.new[!is.na(cat.new[,k]),k]), ncol = length(cat.new[!is.na(cat.new[,k]),k]))) #Make a dataframe for each distance
+name = paste("new.distances",type[k],sep="") #Make a new name for each matrix based on category
+  for (i in 1:length(cat.new[!is.na(cat.new[,k]),k])){
+    for (j in 1:length(cat.new[!is.na(cat.new[,k]),k])){
+    point1id = grep(tolower(cat.new[i,k]),drugave[,1]) #Find the ids of the two drugs to be compared
+    point2id = grep(tolower(cat.new[j,k]),drugave[,1])
+    new.distances[j,i] = D(drugave[point1id,2:9],drugave[point2id,2:9]) #Use the distance function I made
+    row.names(new.distances) = cat.new[!is.na(cat.new[,k]),k] #Define row names
+    colnames(new.distances) = cat.new[!is.na(cat.new[,k]),k]
+    }
+  }
+ave.pyr.dist[k] = mean(new.distances$pyriplatin[1:length(new.distances$pyriplatin)-1])
+#print(new.distances)
+assign(name,new.distances)
+
+}
+print(ave.pyr.dist)
+# The average distance between Pyriplatin and the drugs in category 1.3 is the smallest. This adds credibility to the prediction of the model and I believe this prediction
+
+#I now want to get a visualization of this prediction using PCA
+
+id1.3 = grep("^1.3$",fulldata[,14]) #Get the IDs of the data we want
+id1.2 = grep("^1.2$",fulldata[,14])
+id1.1 = grep("^1.1$",fulldata[,14])
+idPyr = grep("pyriplatin",fulldata[,1])
+id = c(id1.3,id1.2,id1.1,idPyr)
+PCdata = fulldata[id,4:11] #MAke the data frame that will go into PCA
+PCA = prcomp(PCdata,center = T,scale = T) #Perform PCA
+varexp=(PCA$sdev)^2 / sum(PCA$sdev^2) 
+plot(varexp)
+PC.cat = matrix(0,nrow = length(id),ncol = 1) #Get the label for each drug in the selected categories
+PC.cat[1:length(id1.3)] = fulldata[id1.3,14]
+PC.cat[(length(id1.3)+1):(length(id1.3)+length(id1.2))] = fulldata[id1.2,14]
+PC.cat[(length(id1.3)+length(id1.2)+1):(length(id1.3)+length(id1.2)+length(id1.1))] = fulldata[id1.1,14]
+PC.cat[(length(id1.3)+length(id1.2)+length(id1.1)+1):length(PC.cat)] = "Pyriplatin"
+thing = data.frame(PCA$x,PC.cat)
+#Plot PCA
+ggplot(thing,aes(x=PC1,y=PC2,col=PC.cat,color = cyl))+
+  geom_point(size=5,alpha=0.8)+ #Size and alpha just for fun
+  theme(axis.text.y=element_text(colour="black",size=18))+
+  theme(axis.text.x=element_text(colour="black",size=18))+
+  theme(axis.title.y=element_text(size=18))+
+  theme(axis.title.x=element_text(size=18))+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+  theme(panel.border = element_blank())+
+  theme(panel.background = element_blank())+
+  theme(axis.line = element_line(colour = "black",size=1))+
+  scale_color_brewer(palette="Paired")
+
+#Pyriplatin overlays 1.3, which explains why it has the shortest Euclidean distance. I could believe predictions of category 1.2 since it is so sporadic, but I think putting Pyriplatin into category 1.3 makes the most since based off the Euclidean distance and the visual support from PCA. 
+
+```
+
+```{r}
+
+#I will now analyze a drug that is not neatly predicted to be in one category. I will investigate phenanthriplatin using PCA to visually see why it gets put into multiple categories
+
+
+id2.1.2 = grep("2.1.2",fulldata[,16]) #Get the IDs of the data we want
+id2.3.1 = grep("2.3.1",fulldata[,16])
+id2.3.2 = grep("2.3.2",fulldata[,16])
+id2.4.1 = grep("2.4.1",fulldata[,16])
+idPh = grep("phenanthriplatin",fulldata[,1])
+id = c(id2.1.2,id2.3.1,id2.3.2,id2.4.1,idPh)
+PCdata = fulldata[id,4:11] #MAke the data frame that will go into PCA
+PCA = prcomp(PCdata,center = T,scale = T) #Perform PCA
+varexp=(PCA$sdev)^2 / sum(PCA$sdev^2) 
+plot(varexp)
+PC.cat = matrix(0,nrow = length(id),ncol = 1) #Get the label for each drug in the selected categories
+PC.cat[1:length(id2.1.2)] = fulldata[id2.1.2,16]
+PC.cat[(length(id2.1.2)+1):(length(id2.1.2)+length(id2.3.1))] = fulldata[id2.3.1,16]
+PC.cat[(length(id2.1.2)+length(id2.3.1)+1):(length(id2.1.2)+length(id2.3.1)+length(id2.3.2))] = fulldata[id2.3.2,16]
+PC.cat[(length(id2.1.2)+length(id2.3.1)+length(id2.3.2)+1):(length(id2.1.2)+length(id2.3.1)+length(id2.3.2)+length(id2.4.1))] = fulldata[id2.4.1,16]
+PC.cat[(length(id2.1.2)+length(id2.3.1)+length(id2.3.2)+length(id2.4.1)+1):length(PC.cat)] = "phenanthriplatin"
+thing = data.frame(PCA$x,PC.cat)
+#Plot PCA
+ggplot(thing,aes(x=PC1,y=PC2,col=PC.cat,color = cyl))+
+  geom_point(size=5,alpha=0.8)+ #Size and alpha just for fun
+  theme(axis.text.y=element_text(colour="black",size=18))+
+  theme(axis.text.x=element_text(colour="black",size=18))+
+  theme(axis.title.y=element_text(size=18))+
+  theme(axis.title.x=element_text(size=18))+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+  theme(panel.border = element_blank())+
+  theme(panel.background = element_blank())+
+  theme(axis.line = element_line(colour = "black",size=1))+
+  scale_color_brewer(palette="Paired")
+
+#phenanthriplatin falls mostly on top of category 2.3.2, but it does border 2.1.2 and 2.4.1 closely for some points. Let's see what the KNN algorithm thinks
+
+PC.cat1 = PC.cat
+id1 = grep("phenanthriplatin",test.knn[,1])
+Ph.pred = knn.pred[id1]
+PC.cat1[(length(id2.1.2)+length(id2.3.1)+length(id2.3.2)+length(id2.4.1)+1):length(PC.cat)] = as.character(Ph.pred) #Add the predictions
+thing = data.frame(PCA$x,PC.cat1)
+#Plot PCA
+ggplot(thing,aes(x=PC1,y=PC2,col=PC.cat1,))+
+  geom_point(size=5,alpha=0.8)+ #Size and alpha just for fun
+  theme(axis.text.y=element_text(colour="black",size=18))+
+  theme(axis.text.x=element_text(colour="black",size=18))+
+  theme(axis.title.y=element_text(size=18))+
+  theme(axis.title.x=element_text(size=18))+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+  theme(panel.border = element_blank())+
+  theme(panel.background = element_blank())+
+  theme(axis.line = element_line(colour = "black",size=1))+
+  scale_color_brewer(palette="Paired")
+
+# The predictions are somewhat reasonable, but not what I would choose based of this visual. Category 2.3.1 only has 3 observations, so I feel uncomfortable categorizing 4 addition observations into that category. I will now make a data frame just of phenanthriplatin with its predicted categories to see if I can find any correlations
+
+Ph.df = fulldata[idPh,c(1:11)]
+
+#Investigating the effect of %Dead on prediction
+
+Ph.df1 = cbind(Ph.df,Ph.pred)
+plot(Ph.df1$Ph.pred,Ph.df$`%Dead`,xlab = "Category",ylab = "%Dead")
+
+#Tough to draw any conclusions from this. The ranges for the categories are overlapping so I don't think the viabilities of the cells in the experiment effect the classification too much in this case
+
+#INvestigating the date of each experiment
+
+Ph.df2 = substring(Ph.df1$Date,1,4)
+Ph.df1$Date = Ph.df2
+plot(Ph.df1$Ph.pred,as.numeric(Ph.df1$Date),xlab = "Category",ylab = "Year")
+
+#A little more interesting results here. Experiments done in 2013 or 2014 were mostly 2.1.2. The year may be responsible for the split in classification.
+
+#Lastly, I'm going to see which category phenanthriplatin is closest to in Euclidean distance
+cat.new1 = cat
+cat.new1[2,7] = "phenanthriplatin"
+cat.new1[3,7] = NA
+for (i in 1:9){
+  cat.new1[length(cat[!is.na(cat[,i]),i])+1,i] = "phenanthriplatin"
+}
+ave.Ph.dist = data.frame(matrix(NA, nrow =1, ncol = 9))
+colnames(ave.Ph.dist) = type[c(1,2,3,4,5,6,7,8,9)]
+for (k in 1:9){
+new.distances = data.frame(matrix(NA, nrow = length(cat.new1[!is.na(cat.new1[,k]),k]), ncol = length(cat.new1[!is.na(cat.new1[,k]),k]))) #Make a dataframe for each distance
+name = paste("new.distances",type[k],sep="") #Make a new name for each matrix based on category
+  for (i in 1:length(cat.new1[!is.na(cat.new1[,k]),k])){
+    for (j in 1:length(cat.new1[!is.na(cat.new1[,k]),k])){
+    point1id = grep(tolower(cat.new1[i,k]),drugave[,1]) #Find the ids of the two drugs to be compared
+    point2id = grep(tolower(cat.new1[j,k]),drugave[,1])
+    new.distances[j,i] = D(drugave[point1id,2:9],drugave[point2id,2:9]) #Use the distance function I made
+    row.names(new.distances) = cat.new1[!is.na(cat.new1[,k]),k] #Define row names
+    colnames(new.distances) = cat.new1[!is.na(cat.new1[,k]),k]
+    }
+  }
+ave.Ph.dist[k] = mean(new.distances$phenanthriplatin[1:length(new.distances$phenanthriplatin)-1])
+#print(new.distances)
+assign(name,new.distances)
+
+}
+print(ave.Ph.dist)
+
+#Surprisingly, category 2.3.1 was the closest to phenanthriplatin in Euclidean distance. This explains why so many observations were classified in that way. It is important to remember that the PCA is showing us 8 dimensional data in 2D, so it is not a perfect visualization. This goes to show that a variety of methods should be used when classifying unknown data. As it stands now, the data spread is too broad for me to confidently say which category phenanthriplatin falls into. 
+```
+```{r} 
+#Project 3
+
+#Q1
+
+#Random Forest
+library('randomForest')
+x = sample(1:length(merged[,1]), ceiling(0.8*length(merged[,1])), replace = FALSE) #Make test and training sets. training = 80% of the data
+train = merged[x,]
+test = merged[-x,]
+no.cat = test.knn #has all data we have categories for
+has.cat = train.knn #Has data we have no categories for
+RF = randomForest(as.factor(Categories)~.,data = train[,2:10]) #Basic random forest with default values
+#RF
+RF.pred = predict(RF,test[,2:9])
+table(test[,10],RF.pred)
+accuracy = mean(test[,10] == RF.pred)
+error = 100 - 100*accuracy
+error
+# 4.21% error rate with default values
+
+#Find the affect of changing mtry and different seeds
+ error = matrix(0,nrow=100,ncol=8)
+ # for (j in 1:100){
+ #   set.seed(j)
+ # for (i in 1:8) {
+ #   RF = randomForest(as.factor(Categories)~.,data = train[,2:10],mtry = i) 
+ #   RF.pred = predict(RF,test[,2:9])
+ #   table(test[,10],RF.pred)
+ #   accuracy[i] = mean(test[,10] == RF.pred)
+ #   error[j,i] = 100-100*accuracy[i]
+ # 
+ #   }
+ # }
+ #error
+ std = rep(0,8)
+ ave.error = colMeans(error)
+ std[1] = sd(error[,1])
+ std[2] = sd(error[,2])
+ std[3] = sd(error[,3])
+ std[4] = sd(error[,4])
+ std[5] = sd(error[,5])
+ std[6] = sd(error[,6])
+ std[7] = sd(error[,7])
+ std[8] = sd(error[,8])
+ std
+ ave.error
+
+#The lowest test set error comes from an mtry of 8. However, this mtry value also has the highest standard deviation across 100 seeds. This indicates that high mtry values are likely to overfit the model. Sometimes this leads to very accurate results, but it is not consistent. The best practice would be to choose an mtry value of 1, 2, or 3. These values all had low error rates and little standard deviation. Going forward, the recommendation of sqrt(p) will be taken
+
+#Find the affect of changing ntrees
+ error = matrix(0,nrow=1,ncol=50)
+
+ for (i in 1:50) {
+   RF = randomForest(as.factor(Categories)~.,data = train[,2:10],ntree = i)
+   RF.pred = predict(RF,test[,2:9])
+   table(test[,10],RF.pred)
+   accuracy[i] = mean(test[,10] == RF.pred)
+   error[i] = 100-100*accuracy[i]
+ }
+ #error
+ ave.error = colMeans(error)
+ ave.error
+plot(c(1:50),error,xlab ='Number of trees',ylab ='Test Error')
+
+#We stop seeing reductions in test error after 20 trees incorporated in random forest
+
+
+#Bagging
+
+library('ipred')
+OOBerr = rep(0,50)
+for (i in 10:50){
+bag1 = bagging(as.factor(Categories)~.,data = merged[,2:10],coob = T,nbagg = i)
+OOBerr[i] = bag1$err*100
+}
+plot(c(10:50),OOBerr[10:50],xlab = 'nbag',ylab = 'OOB error')
+# We start seeing consistent OOB error values at nbag larger than 30
+aveOOB = mean(OOBerr[30:50])
+# Out of bag error = 4.652 %
+# OOB error rate is slightly higher than the test error. However, the difference between the two is less than half a percent, so the true error rate of the model is most likely around 4%. There is a significant number of observations to avoid underfitting, so the error is likely from overfitting. 
+
+# Importance
+
+important = data.frame(row.names = colnames(train[2:9]))
+for (i in 1:50){
+  set.seed(i)
+  RF = randomForest(as.factor(Categories)~.,data = merged[,2:10],ntree = 30)
+  important[,i] = importance(RF)
+}
+average.importantce = rowMeans(important)
+average.importantce
+barplot(as.numeric(average.importantce), names.arg = colnames(train[,2:9]))
+#The most important predictor is shBOK across 50 seeds. the values of this predictor has the greatest impact on predictions made through my random forests model
+
+#In my final model I will stick with the default mtry and 30 trees. 
+```
+```{r}
+#Q2
+#Find the errors in the test set for KNN
+library(class)
+# Verify the K value
+accuracy = matrix(NA,nrow = 1,ncol = 20)
+for (i in 1:20) {
+ knn.pred = knn(train[,2:9],test[,2:9],as.factor(train[,10]),k=i)
+ accuracy[i] = 100*mean(knn.pred == test[,10])
+}
+plot(c(1:20),accuracy,xlab = 'K value',ylab = 'accuracy')
+
+#Highest accuracy obtained with k=1 and 2. Using k=1 going forward
+
+knn.pred = knn(train[,2:9],test[,2:9],as.factor(train[,10]),k=1)
+count = 1
+knn.error = matrix(NA,nrow = 1,ncol = length(knn.pred))
+for (i in 1:length(knn.pred)){
+  if (knn.pred[i] != test[i,10]){
+    knn.error[count] = i
+    count = count+1
+  }
+}
+knn.errorid = knn.error[!is.na(knn.error)]
+mean(knn.pred == test[,10])
+table(knn.pred,test[,10])
+# KNN accuracy = 97.89%
+#KNN incorrectly predicts the category of two observations of camptothecin as 1.3 and 2.4.1, when they are in category 1.2
+
+#LDA
+library(MASS)
+lda.model = lda(Categories~.,train[,2:10])
+lda.pred = predict(lda.model,test[,2:10])
+mean(lda.pred$class == test[,10])
+lda.error = matrix(NA,nrow=1,ncol = length(lda.pred$class))
+count = 1
+for (i in 1:length(lda.pred$class)){
+  if(lda.pred$class[i] != test[i,10]){
+    lda.error[count] = i
+    count = count+1
+  }
+}
+lda.error
+table(lda.pred$class,test[,10])
+#LDA accuracy = 96.84%
+#LDA incorrectly categorized 3 observations: 
+#6-thioguanine as 1.1 when it is 1.2
+#campothecin as 2.4.1 when it is 1.2
+#cyclohexamide as 2.2 when it is 2.3.2
+
+#Random Forest
+library(randomForest)
+RF = randomForest(as.factor(Categories)~.,data = train[,2:10],ntree = 30)
+RF.pred = predict(RF,test[,2:9])
+RF.error = matrix(NA,nrow = 1, ncol = length(RF.pred))
+count = 1
+for (i in 1:length(RF.pred)){
+  if (RF.pred[i] != test[i,10]){
+    RF.error[count] = i
+    count = count+1
+  }
+}
+RF.error
+table(RF.pred,test[,10])
+# Random Forests incorrectly categorizes an observation of compothecin as category 2.4.1 when it is 1.2. 
+
+#Across all three algorithms, One oberservation of campothecin was categorized as 2.4.1. Compothecin was responsible for the two innacuracies when using KNN and the sole inaccuracy of random forest. LDA was the only algoirthm that had innacuracies outside of compothecin. 
+```
+```{r}
+#Q3
+#Means for each drug will be used for each drug in clustering because I think that is the best way to respresent each set of observations
+
+#To decide how many clusters there are, I made a cutoff of 7.5% the range of data points on PC1. For clusters to be distinct, I decided that the centers of each cluster must be at least 5% the range of PC1 away from any other clusters.
+
+#K-means clustering
+set.seed(4)
+colnames(drugave) = colnames(fulldata[c(1,4:11)]) #Set column names
+#Want to see how many principle components it takes to cover 85% of the variance
+pc = prcomp(drugave[,2:9])
+plot(pc)
+summary(pc)
+#The first four Principle components cover around 87% of the variance
+# 9 clusters are selected to represent the 9 categories at first
+pc.comp = data.frame(pc$x[,1:4])
+k=7
+km = kmeans(pc.comp,k, nstart =20, iter.max = 1000)
+plot(pc.comp, col = km$clust, pch=16)
+#Want to see how far apart the centers of each cluster are
+
+#PC1 vs PC2, 3, and 4
+clust = c(1:k)
+for (k in 1:length(km$centers[1,])){
+  clust.distPC1 = data.frame(matrix(NA, nrow = length(km$centers[,1]), ncol = length(km$centers[,1])))
+  name = paste("clustdist1.",clust[k],sep="")
+  for (i in 1:length(km$centers[,1])){
+    for (j in 1:length(km$centers[,1])){
+    xdist = km$centers[i,1]-km$centers[j,1]
+    ydist = km$centers[i,k]-km$centers[j,k]
+    clust.distPC1[j,i] = sqrt(xdist^2+ydist^2)
+    row.names(clust.distPC1) = as.character(c(1:length(km$centers[,1])))
+    colnames(clust.distPC1) = as.character(c(1:length(km$centers[,1])))
+    }
+  }
+  print(clust.distPC1)
+  assign(name,clust.distPC1)
+}
+PC1.range = max(km$center[,1]) - min(km$center[,1]) #Find the range of centers in PC1
+cutoff = 0.075*PC1.range #Make a cutoff of7.5% the range
+tooclose1.2 = which(clustdist1.2<cutoff) #Look for any clusters that are closer than 7.5% the range, ignoring the outputs where one cluster was compared to itself resulting in a distance of zero.
+tooclose1.3 = which(clustdist1.3<cutoff)
+tooclose1.4 = which(clustdist1.4<cutoff)
+ 
+#When I was playing around with the K value, I found that 7 is the highest number of clusters that all have distances below the cutoff for the graphs of PC1 vs PC2 and 3. To me, this provides substantial evidence that there are truly 7 clusters in the data set. 
+#The graph of PC1 vs PC4 sometimes resulted in clusters below the cutoff for 7 or less clusters, but since PC4 only covers about 6 percent of the variance I don't think it provides the best estimation.
+
+#I manually went through and changed the seed from 1-10. For each seed, PC1 vs PC2 and PC3 had no cluster centers below the cutoff. The assumption that there are 7 clusters holds across different seeds
+```
+
+```{r}
+#The last thing I want to do is remove campothecin to see if it changes anything
+set.seed(1)
+id = grep("camptothecin",drugave[,1])
+no.cam = drugave[-id,]
+pc = prcomp(no.cam[,2:9])
+plot(pc)
+summary(pc)
+#The first four Principle components cover around 88% of the variance this time. One more percent when there is no camptothecin
+pc.comp = data.frame(pc$x[,1:4])
+k=7
+km = kmeans(pc.comp,k, nstart =20, iter.max = 1000)
+plot(pc.comp, col = km$clust, pch=16)
+#Want to see how far apartthe centers of each cluster are
+
+#PC1 vs PC2, 3, and 4
+clust = c(1:k)
+for (k in 1:length(km$centers[1,])){
+  clust.distPC1 = data.frame(matrix(NA, nrow = length(km$centers[,1]), ncol = length(km$centers[,1])))
+  name = paste("clustdist1.",clust[k],sep="")
+  for (i in 1:length(km$centers[,1])){
+    for (j in 1:length(km$centers[,1])){
+    xdist = km$centers[i,1]-km$centers[j,1]
+    ydist = km$centers[i,k]-km$centers[j,k]
+    clust.distPC1[j,i] = sqrt(xdist^2+ydist^2)
+    row.names(clust.distPC1) = as.character(c(1:length(km$centers[,1])))
+    colnames(clust.distPC1) = as.character(c(1:length(km$centers[,1])))
+    }
+  }
+  print(clust.distPC1)
+  assign(name,clust.distPC1)
+}
+PC1.range = max(km$center[,1]) - min(km$center[,1]) #Find the range of centers in PC1
+cutoff = 0.05*PC1.range #Make a cutoff of 7.5% the range
+tooclose1.2 = which(clustdist1.2<cutoff) #Look for any clusters that are closer than 7.5% the range, ignoring the outputs where one cluster was compared to itself resulting in a distance of zero.
+tooclose1.3 = which(clustdist1.3<cutoff)
+tooclose1.4 = which(clustdist1.4<cutoff)
+
+# 7 is still the least number of clusters below the cutoff, but only when looking at the graph of PC1 and PC2. Interestingly, the absence of camptothecin makes the data slightly more sceptible to random noise. In some of the seeds for k=6, PC1 vs PC2 had clusters that fell below the cutoff. The reason for this may that the elimination of this data point may not change the clusters musch, but it might affect the center of the centroid just enough to not make the cutoff in a few certain seeds. regardless, most of the time the reduction of this one data point did not have a substantial impact of the clusters.
+
+#My final estimate for the number of clusters in this data set is 9 to match the nine categories. 9 clusters is the maximum amount that can be made that all have centers at least 5% the range of the PC1 values away from each other. This was constant across multiple seeds and when outlier data is removed. As more principle components get considered the maximum number of clusters that all meet the cutoff decreases, but because these PCs make up less of the total variance so I have less confidence in them.
+
+```
+```{r}
+#I thought I as done, but then I remembered silhoutte score. 
+library(cluster)
+silhouette_score = function(k){
+  km = kmeans(drugave[,2:9], centers = k, nstart=25)
+  ss = silhouette(km$cluster, dist(df))
+  mean(ss[, 3])
+}
+avg.sil = rep(0,20)
+for (i in 2:20){
+  avg.sil[i] = silhouette_score(i)
+}
+plot(k,type = "b", avg.sil[2:20], xlab='Number of clusters', ylab='Average Silhouette Scores', frame=FALSE)
+
+#The results from the sillouette score slightly differ from my cutoff method. Across multiple seeds, the highest silloutte scores that are not two are seven and eight. Sillohouette scores are a more comprehensive way to determine how many clusters there are. The fact that I got similar results using my cutoff method goes to show that the more distinct the clusters are the further away they will be from each other. One way to improve my method would be to find a better way to decide the cutoff than arbitrarily picking a percentage.
+
+#Lastly, it has been a pleasure and I wish you the best next semester!
+```
